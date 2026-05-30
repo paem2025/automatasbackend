@@ -46,8 +46,17 @@ export function protocolAutomataTrace(packet: PacketConfig, detectedProtocol: st
     {
       from: "p1",
       symbol: `PUERTO_${packet.destinationPort || "SIN_DATO"}`,
-      to: `p${detectedProtocol.toUpperCase().replaceAll(" ", "_")}`,
+      to: `p${normalizeProtocolState(detectedProtocol)}`,
       status: "ok"
     }
   ];
+}
+
+function normalizeProtocolState(protocol: string): string {
+  const normalized = protocol
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  return normalized || "UNKNOWN_PROTOCOL";
 }
