@@ -19,7 +19,6 @@ interface FailureResult {
 
 export function simulate(request: SimulationRequest): SimulationResponse {
   const protocol = detectProtocol(request.packet);
-  const protocolTrace = protocolAutomataTrace(request.packet, protocol);
 
   const steps: SimulationStep[] = [];
   const transitions: AutomataTransition[] = [];
@@ -36,7 +35,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
         }
       ],
       transitions: [{ from: "q0", symbol: "IP_ORIGEN_INVALIDA", to: "qError", status: "error" }]
-    }, protocol, protocolTrace);
+    }, request.packet, protocol);
   }
 
   steps.push({ description: "1. PC1 valida su direccion IP de origen.", status: "ok" });
@@ -49,7 +48,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
       reachedPath: ["PC1"],
       steps: [...steps, { description: "2. PC1 valida direccion de destino.", status: "error" }],
       transitions: [...transitions, { from: "q1", symbol: "IP_DESTINO_INVALIDA", to: "qError", status: "error" }]
-    }, protocol, protocolTrace);
+    }, request.packet, protocol);
   }
 
   steps.push({ description: "2. PC1 valida direccion de destino.", status: "ok" });
@@ -65,7 +64,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
       reachedPath: ["PC1"],
       steps: [...steps, { description: "3. Se validan mascaras de red.", status: "error" }],
       transitions: [...transitions, { from: "q2", symbol: "MASCARA_INVALIDA", to: "qError", status: "error" }]
-    }, protocol, protocolTrace);
+    }, request.packet, protocol);
   }
 
   steps.push({ description: "3. Se validan mascaras de red.", status: "ok" });
@@ -79,7 +78,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
       reachedPath: ["PC1", "Switch1"],
       steps: [...steps, { description: "4. Se valida la configuracion del router.", status: "error" }],
       transitions: [...transitions, { from: "q3", symbol: "ROUTER_IP_INVALIDA", to: "qError", status: "error" }]
-    }, protocol, protocolTrace);
+    }, request.packet, protocol);
   }
 
   const differentNetwork = !sameNetwork(pc1Ip.value, pc2Ip.value, pc1Mask.value);
@@ -89,7 +88,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
       reachedPath: ["PC1"],
       steps: [...steps, { description: "4. PC1 evalua si PC2 esta en otra red.", status: "error" }],
       transitions: [...transitions, { from: "q3", symbol: "MISMA_RED", to: "qError", status: "error" }]
-    }, protocol, protocolTrace);
+    }, request.packet, protocol);
   }
 
   steps.push({ description: "4. PC1 detecta que PC2 esta en otra red.", status: "ok" });
@@ -102,7 +101,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
       reachedPath: ["PC1"],
       steps: [...steps, { description: "5. PC1 intenta enviar al gateway.", status: "error" }],
       transitions: [...transitions, { from: "q4", symbol: "GATEWAY_FORMATO_INVALIDO", to: "qError", status: "error" }]
-    }, protocol, protocolTrace);
+    }, request.packet, protocol);
   }
 
   if (!sameNetwork(pc1Ip.value, pc1GatewayIp.value, pc1Mask.value)) {
@@ -111,7 +110,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
       reachedPath: ["PC1"],
       steps: [...steps, { description: "5. PC1 intenta enviar al gateway.", status: "error" }],
       transitions: [...transitions, { from: "q4", symbol: "GATEWAY_FUERA_DE_RED", to: "qError", status: "error" }]
-    }, protocol, protocolTrace);
+    }, request.packet, protocol);
   }
 
   if (request.pc1.gateway !== request.router.eth0.ip) {
@@ -120,7 +119,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
       reachedPath: ["PC1", "Switch1"],
       steps: [...steps, { description: "5. PC1 intenta enviar al gateway.", status: "error" }],
       transitions: [...transitions, { from: "q4", symbol: "GATEWAY_NO_CORRESPONDE_ROUTER", to: "qError", status: "error" }]
-    }, protocol, protocolTrace);
+    }, request.packet, protocol);
   }
 
   steps.push({ description: "5. PC1 envia el paquete al gateway.", status: "ok" });
@@ -132,7 +131,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
       reachedPath: ["PC1", "Switch1", "Router1"],
       steps: [...steps, { description: "6. Router1 busca una ruta hacia la red destino.", status: "error" }],
       transitions: [...transitions, { from: "q5", symbol: "RUTA_NO_ENCONTRADA", to: "qError", status: "error" }]
-    }, protocol, protocolTrace);
+    }, request.packet, protocol);
   }
 
   if (!sameNetwork(pc2Ip.value, eth1Ip.value, eth1Mask.value)) {
@@ -141,7 +140,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
       reachedPath: ["PC1", "Switch1", "Router1"],
       steps: [...steps, { description: "6. Router1 busca una ruta hacia la red destino.", status: "error" }],
       transitions: [...transitions, { from: "q5", symbol: "RUTA_NO_ENCONTRADA", to: "qError", status: "error" }]
-    }, protocol, protocolTrace);
+    }, request.packet, protocol);
   }
 
   const pc2GatewayIp = parseIpv4(request.pc2.gateway);
@@ -151,7 +150,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
       reachedPath: ["PC1", "Switch1", "Router1", "Switch2"],
       steps: [...steps, { description: "6. Router1 busca una ruta hacia la red destino.", status: "error" }],
       transitions: [...transitions, { from: "q5", symbol: "RUTA_DESTINO_INVALIDA", to: "qError", status: "error" }]
-    }, protocol, protocolTrace);
+    }, request.packet, protocol);
   }
 
   if (!sameNetwork(pc2Ip.value, pc2GatewayIp.value, pc2Mask.value)) {
@@ -160,7 +159,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
       reachedPath: ["PC1", "Switch1", "Router1", "Switch2"],
       steps: [...steps, { description: "6. Router1 busca una ruta hacia la red destino.", status: "error" }],
       transitions: [...transitions, { from: "q5", symbol: "RUTA_DESTINO_INVALIDA", to: "qError", status: "error" }]
-    }, protocol, protocolTrace);
+    }, request.packet, protocol);
   }
 
   if (request.pc2.gateway !== request.router.eth1.ip) {
@@ -169,7 +168,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
       reachedPath: ["PC1", "Switch1", "Router1", "Switch2"],
       steps: [...steps, { description: "6. Router1 busca una ruta hacia la red destino.", status: "error" }],
       transitions: [...transitions, { from: "q5", symbol: "RUTA_DESTINO_INVALIDA", to: "qError", status: "error" }]
-    }, protocol, protocolTrace);
+    }, request.packet, protocol);
   }
 
   steps.push({ description: "6. Router1 reenvia el paquete hacia la red destino.", status: "ok" });
@@ -189,14 +188,14 @@ export function simulate(request: SimulationRequest): SimulationResponse {
     reason: `Transporte ${request.packet.transport}${packetPortMessage(request.packet)} corresponde a ${protocol}.`,
     steps,
     networkAutomataTrace: transitions,
-    protocolAutomataTrace: protocolTrace
+    protocolAutomataTrace: protocolAutomataTrace(request.packet, protocol, { delivered: true })
   };
 }
 
 function failure(
   failureResult: FailureResult,
-  protocol: string,
-  protocolTrace: AutomataTransition[]
+  packet: PacketConfig,
+  protocol: string
 ): SimulationResponse {
   return {
     delivered: false,
@@ -207,7 +206,10 @@ function failure(
     reason: failureResult.reason,
     steps: failureResult.steps,
     networkAutomataTrace: failureResult.transitions,
-    protocolAutomataTrace: protocolTrace
+    protocolAutomataTrace: protocolAutomataTrace(packet, protocol, {
+      delivered: false,
+      failureReason: failureResult.reason
+    })
   };
 }
 
