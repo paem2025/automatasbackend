@@ -123,7 +123,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
     }, request.packet, protocol);
   }
 
-  if (request.pc1.gateway !== request.router.eth0.ip) {
+  if (!sameIpv4(pc1GatewayIp.value, eth0Ip.value)) {
     return failure({
       code: "PC1_GATEWAY_NOT_ROUTER",
       reason: "El gateway de PC1 no coincide con la IP de Router1 en eth0.",
@@ -177,7 +177,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
     }, request.packet, protocol);
   }
 
-  if (request.pc2.gateway !== request.router.eth1.ip) {
+  if (!sameIpv4(pc2GatewayIp.value, eth1Ip.value)) {
     return failure({
       code: "PC2_GATEWAY_NOT_ROUTER",
       reason: "El gateway de PC2 no coincide con Router1 eth1.",
@@ -238,4 +238,8 @@ function packetPortMessage(packet: PacketConfig): string {
     return "";
   }
   return ` y puerto ${packet.destinationPort || "desconocido"}`;
+}
+
+function sameIpv4(ipA: number[], ipB: number[]): boolean {
+  return ipA.every((octet, index) => octet === ipB[index]);
 }
