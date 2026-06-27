@@ -7,13 +7,14 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run src",
+    "test:watch": "vitest src"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "mysql2": "^3.22.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.18",
@@ -21,6 +22,6 @@
     "@types/node": "^22.13.8",
     "tsx": "^4.20.5",
     "typescript": "^5.8.2",
-    "vitest": "^2.1.9"
+    "vitest": "^4.1.8"
   }
 }

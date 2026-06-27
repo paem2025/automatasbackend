@@ -1,4 +1,4 @@
-import { AutomataTransition, PacketConfig } from "./types.js";
+import { AutomataTransition, NetworkFailureCode, PacketConfig } from "./types.js";
 
 const TCP_PROTOCOL_BY_PORT: Record<number, string> = {
   20: "FTP-DATA",
@@ -22,7 +22,7 @@ const UDP_PROTOCOL_BY_PORT: Record<number, string> = {
 
 export interface ProtocolTraceContext {
   delivered: boolean;
-  failureReason?: string;
+  failureCode?: NetworkFailureCode;
 }
 
 export function detectProtocol(packet: PacketConfig): string {
@@ -46,14 +46,14 @@ export function protocolAutomataTrace(
   detectedProtocol: string,
   context: ProtocolTraceContext
 ): AutomataTransition[] {
-  const failureReason = context.failureReason?.toLowerCase() ?? "";
+  const failureCode = context.failureCode;
   const normalizedProtocol = normalizeProtocolState(detectedProtocol);
 
-  if (!context.delivered && isPrecheckFailure(failureReason)) {
+  if (!context.delivered && isPrecheckFailure(failureCode)) {
     return [{ from: "p0", symbol: "PRECHECK_FAILED", to: "pProtocolError", status: "error" }];
   }
 
-  const transitions = buildArpPhase(context.delivered, failureReason);
+  const transitions = buildArpPhase(context.delivered, failureCode);
   const lastState = transitions.at(-1)?.to ?? "p0";
   if (lastState === "pArpError") {
     return transitions;
@@ -67,16 +67,16 @@ export function protocolAutomataTrace(
     return transitions.concat(buildUdpPhase(lastState, detectedProtocol, normalizedProtocol, context.delivered));
   }
 
-  return transitions.concat(buildIcmpPhase(lastState, context.delivered, failureReason));
+  return transitions.concat(buildIcmpPhase(lastState, context.delivered, failureCode));
 }
 
-function buildArpPhase(delivered: boolean, failureReason: string): AutomataTransition[] {
+function buildArpPhase(delivered: boolean, failureCode?: NetworkFailureCode): AutomataTransition[] {
   const transitions: AutomataTransition[] = [
     { from: "p0", symbol: "FRAME_READY", to: "pL2", status: "ok" },
     { from: "pL2", symbol: "ARP_REQUEST_GATEWAY", to: "pArpWait", status: "ok" }
   ];
 
-  if (!delivered && isArpFailure(failureReason)) {
+  if (!delivered && isArpFailure(failureCode)) {
     transitions.push({
       from: "pArpWait",
       symbol: "ARP_TIMEOUT_GATEWAY",
@@ -185,9 +185,9 @@ function buildUdpPhase(
 function buildIcmpPhase(
   startState: string,
   delivered: boolean,
-  failureReason: string
+  failureCode?: NetworkFailureCode
 ): AutomataTransition[] {
-  const failureSymbol = failureReason.includes("ruta") || failureReason.includes("gateway")
+  const failureSymbol = isDestinationUnreachableFailure(failureCode)
     ? "ICMP_DESTINATION_UNREACHABLE"
     : "ICMP_TIME_EXCEEDED";
 
@@ -202,17 +202,30 @@ function buildIcmpPhase(
   ];
 }
 
-function isPrecheckFailure(failureReason: string): boolean {
+function isPrecheckFailure(failureCode?: NetworkFailureCode): boolean {
   return (
-    failureReason.includes("ip de pc1 invalida") ||
-    failureReason.includes("ip de pc2 invalida") ||
-    failureReason.includes("mascara") ||
-    failureReason.includes("quedaron en la misma red")
+    failureCode === "PC1_IP_INVALID" ||
+    failureCode === "PC2_IP_INVALID" ||
+    failureCode === "MASK_INVALID" ||
+    failureCode === "ROUTER_IP_INVALID" ||
+    failureCode === "SAME_NETWORK" ||
+    failureCode === "PC1_GATEWAY_INVALID" ||
+    failureCode === "PC1_GATEWAY_OUT_OF_NETWORK"
   );
 }
 
-function isArpFailure(failureReason: string): boolean {
-  return failureReason.includes("gateway");
+function isArpFailure(failureCode?: NetworkFailureCode): boolean {
+  return failureCode === "PC1_GATEWAY_NOT_ROUTER";
+}
+
+function isDestinationUnreachableFailure(failureCode?: NetworkFailureCode): boolean {
+  return (
+    failureCode === "ROUTER_ETH0_NOT_IN_PC1_NETWORK" ||
+    failureCode === "ROUTER_ETH1_NOT_IN_PC2_NETWORK" ||
+    failureCode === "PC2_GATEWAY_INVALID" ||
+    failureCode === "PC2_GATEWAY_OUT_OF_NETWORK" ||
+    failureCode === "PC2_GATEWAY_NOT_ROUTER"
+  );
 }
 
 function normalizeProtocolState(protocol: string): string {

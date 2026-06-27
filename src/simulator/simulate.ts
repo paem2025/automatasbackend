@@ -1,7 +1,9 @@
 import { detectProtocol, protocolAutomataTrace } from "./protocol.js";
+import { buildProtocolAutomataDefinition, networkAutomataDefinition } from "./automataDefinitions.js";
 import { parseIpv4, parseMask, sameNetwork } from "./networkUtils.js";
 import {
   AutomataTransition,
+  NetworkFailureCode,
   PacketConfig,
   SimulationRequest,
   SimulationResponse,
@@ -11,6 +13,7 @@ import {
 const FULL_PATH = ["PC1", "Switch1", "Router1", "Switch2", "PC2"];
 
 interface FailureResult {
+  code: NetworkFailureCode;
   reason: string;
   reachedPath: string[];
   steps: SimulationStep[];
@@ -26,6 +29,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
   const pc1Ip = parseIpv4(request.pc1.ip);
   if (!pc1Ip.ok || !pc1Ip.value) {
     return failure({
+      code: "PC1_IP_INVALID",
       reason: "IP de PC1 invalida.",
       reachedPath: ["PC1"],
       steps: [
@@ -44,6 +48,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
   const pc2Ip = parseIpv4(request.pc2.ip);
   if (!pc2Ip.ok || !pc2Ip.value) {
     return failure({
+      code: "PC2_IP_INVALID",
       reason: "IP de PC2 invalida.",
       reachedPath: ["PC1"],
       steps: [...steps, { description: "2. PC1 valida direccion de destino.", status: "error" }],
@@ -60,6 +65,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
   const eth1Mask = parseMask(request.router.eth1.mask);
   if (!pc1Mask.ok || !pc1Mask.value || !pc2Mask.ok || !pc2Mask.value || !eth0Mask.ok || !eth0Mask.value || !eth1Mask.ok || !eth1Mask.value) {
     return failure({
+      code: "MASK_INVALID",
       reason: "Al menos una mascara de red es invalida.",
       reachedPath: ["PC1"],
       steps: [...steps, { description: "3. Se validan mascaras de red.", status: "error" }],
@@ -74,6 +80,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
   const eth1Ip = parseIpv4(request.router.eth1.ip);
   if (!eth0Ip.ok || !eth0Ip.value || !eth1Ip.ok || !eth1Ip.value) {
     return failure({
+      code: "ROUTER_IP_INVALID",
       reason: "Una interfaz del router tiene IP invalida.",
       reachedPath: ["PC1", "Switch1"],
       steps: [...steps, { description: "4. Se valida la configuracion del router.", status: "error" }],
@@ -84,6 +91,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
   const differentNetwork = !sameNetwork(pc1Ip.value, pc2Ip.value, pc1Mask.value);
   if (!differentNetwork) {
     return failure({
+      code: "SAME_NETWORK",
       reason: "PC1 y PC2 quedaron en la misma red logica; esta topologia requiere redes distintas para enrutar.",
       reachedPath: ["PC1"],
       steps: [...steps, { description: "4. PC1 evalua si PC2 esta en otra red.", status: "error" }],
@@ -97,6 +105,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
   const pc1GatewayIp = parseIpv4(request.pc1.gateway);
   if (!pc1GatewayIp.ok || !pc1GatewayIp.value) {
     return failure({
+      code: "PC1_GATEWAY_INVALID",
       reason: "Gateway de PC1 invalido.",
       reachedPath: ["PC1"],
       steps: [...steps, { description: "5. PC1 intenta enviar al gateway.", status: "error" }],
@@ -106,6 +115,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
 
   if (!sameNetwork(pc1Ip.value, pc1GatewayIp.value, pc1Mask.value)) {
     return failure({
+      code: "PC1_GATEWAY_OUT_OF_NETWORK",
       reason: "El gateway de PC1 no pertenece a la misma red que PC1.",
       reachedPath: ["PC1"],
       steps: [...steps, { description: "5. PC1 intenta enviar al gateway.", status: "error" }],
@@ -115,6 +125,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
 
   if (request.pc1.gateway !== request.router.eth0.ip) {
     return failure({
+      code: "PC1_GATEWAY_NOT_ROUTER",
       reason: "El gateway de PC1 no coincide con la IP de Router1 en eth0.",
       reachedPath: ["PC1", "Switch1"],
       steps: [...steps, { description: "5. PC1 intenta enviar al gateway.", status: "error" }],
@@ -127,6 +138,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
 
   if (!sameNetwork(pc1Ip.value, eth0Ip.value, eth0Mask.value)) {
     return failure({
+      code: "ROUTER_ETH0_NOT_IN_PC1_NETWORK",
       reason: "Router1 eth0 no pertenece a la red de PC1.",
       reachedPath: ["PC1", "Switch1", "Router1"],
       steps: [...steps, { description: "6. Router1 busca una ruta hacia la red destino.", status: "error" }],
@@ -136,6 +148,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
 
   if (!sameNetwork(pc2Ip.value, eth1Ip.value, eth1Mask.value)) {
     return failure({
+      code: "ROUTER_ETH1_NOT_IN_PC2_NETWORK",
       reason: "Router1 eth1 no pertenece a la red de PC2.",
       reachedPath: ["PC1", "Switch1", "Router1"],
       steps: [...steps, { description: "6. Router1 busca una ruta hacia la red destino.", status: "error" }],
@@ -146,6 +159,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
   const pc2GatewayIp = parseIpv4(request.pc2.gateway);
   if (!pc2GatewayIp.ok || !pc2GatewayIp.value) {
     return failure({
+      code: "PC2_GATEWAY_INVALID",
       reason: "Gateway de PC2 invalido.",
       reachedPath: ["PC1", "Switch1", "Router1", "Switch2"],
       steps: [...steps, { description: "6. Router1 busca una ruta hacia la red destino.", status: "error" }],
@@ -155,6 +169,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
 
   if (!sameNetwork(pc2Ip.value, pc2GatewayIp.value, pc2Mask.value)) {
     return failure({
+      code: "PC2_GATEWAY_OUT_OF_NETWORK",
       reason: "El gateway de PC2 no pertenece a la red de PC2.",
       reachedPath: ["PC1", "Switch1", "Router1", "Switch2"],
       steps: [...steps, { description: "6. Router1 busca una ruta hacia la red destino.", status: "error" }],
@@ -164,6 +179,7 @@ export function simulate(request: SimulationRequest): SimulationResponse {
 
   if (request.pc2.gateway !== request.router.eth1.ip) {
     return failure({
+      code: "PC2_GATEWAY_NOT_ROUTER",
       reason: "El gateway de PC2 no coincide con Router1 eth1.",
       reachedPath: ["PC1", "Switch1", "Router1", "Switch2"],
       steps: [...steps, { description: "6. Router1 busca una ruta hacia la red destino.", status: "error" }],
@@ -187,7 +203,9 @@ export function simulate(request: SimulationRequest): SimulationResponse {
     detectedProtocol: protocol,
     reason: `Transporte ${request.packet.transport}${packetPortMessage(request.packet)} corresponde a ${protocol}.`,
     steps,
+    networkAutomata: networkAutomataDefinition,
     networkAutomataTrace: transitions,
+    protocolAutomata: buildProtocolAutomataDefinition(request.packet, protocol, true),
     protocolAutomataTrace: protocolAutomataTrace(request.packet, protocol, { delivered: true })
   };
 }
@@ -205,10 +223,12 @@ function failure(
     detectedProtocol: protocol,
     reason: failureResult.reason,
     steps: failureResult.steps,
+    networkAutomata: networkAutomataDefinition,
     networkAutomataTrace: failureResult.transitions,
+    protocolAutomata: buildProtocolAutomataDefinition(packet, protocol, false),
     protocolAutomataTrace: protocolAutomataTrace(packet, protocol, {
       delivered: false,
-      failureReason: failureResult.reason
+      failureCode: failureResult.code
     })
   };
 }

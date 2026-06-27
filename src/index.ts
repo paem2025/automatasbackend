@@ -1,6 +1,7 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
+import { getSimulationHistoryStorageStatus, initializeSimulationHistoryStorage } from "./db/simulationHistory.js";
 import simulateRoute from "./routes/simulateRoute.js";
 
 const app = express();
@@ -19,6 +20,7 @@ app.use(express.json());
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
+    database: getSimulationHistoryStorageStatus(),
     service: "routesim-automata-backend",
     timestamp: new Date().toISOString()
   });
@@ -34,4 +36,5 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
 app.listen(port, () => {
   // Keep startup log explicit so students can identify service state quickly.
   console.log(`RouteSim backend escuchando en http://localhost:${port}`);
+  void initializeSimulationHistoryStorage();
 });

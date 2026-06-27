@@ -40,7 +40,28 @@ describe("simulate", () => {
     expect(result.reason).toContain("gateway de PC1");
     expect(result.networkAutomataTrace.at(-1)?.symbol).toBe("GATEWAY_FUERA_DE_RED");
     expect(result.reachedPath).toEqual(["PC1"]);
-    expect(result.protocolAutomataTrace.at(-1)?.symbol).toBe("ARP_TIMEOUT_GATEWAY");
+    expect(result.protocolAutomataTrace).toEqual([
+      { from: "p0", symbol: "PRECHECK_FAILED", to: "pProtocolError", status: "error" }
+    ]);
+  });
+
+  it("falla en ARP cuando el gateway de PC1 no es Router1", () => {
+    const request: SimulationRequest = {
+      ...baseRequest,
+      pc1: {
+        ...baseRequest.pc1,
+        gateway: "192.168.1.254"
+      }
+    };
+
+    const result = simulate(request);
+    expect(result.delivered).toBe(false);
+    expect(result.networkAutomataTrace.at(-1)?.symbol).toBe("GATEWAY_NO_CORRESPONDE_ROUTER");
+    expect(result.protocolAutomataTrace.map((step) => step.symbol)).toEqual([
+      "FRAME_READY",
+      "ARP_REQUEST_GATEWAY",
+      "ARP_TIMEOUT_GATEWAY"
+    ]);
   });
 
   it("falla cuando origen y destino quedan en misma red", () => {
@@ -136,7 +157,7 @@ describe("simulate", () => {
     const result = simulate(request);
     expect(result.delivered).toBe(false);
     expect(result.protocolAutomataTrace.some((step) => step.symbol === "ICMP_ECHO_REQUEST")).toBe(true);
-    expect(result.protocolAutomataTrace.at(-1)?.symbol).toBe("ICMP_TIME_EXCEEDED");
+    expect(result.protocolAutomataTrace.at(-1)?.symbol).toBe("ICMP_DESTINATION_UNREACHABLE");
   });
 
   it("mantiene trazabilidad para puerto desconocido", () => {
@@ -149,4 +170,87 @@ describe("simulate", () => {
     expect(result.detectedProtocol).toBe("TCP puerto 9999");
     expect(result.protocolAutomataTrace.some((step) => step.to === "pTCP_PUERTO_9999")).toBe(true);
   });
+
+  it("no inicia protocolo de transporte cuando la configuracion del router es invalida", () => {
+    const request: SimulationRequest = {
+      ...baseRequest,
+      router: {
+        ...baseRequest.router,
+        eth0: { ip: "999.1.1.1", mask: "255.255.255.0" }
+      }
+    };
+
+    const result = simulate(request);
+    expect(result.delivered).toBe(false);
+    expect(result.networkAutomataTrace.at(-1)?.symbol).toBe("ROUTER_IP_INVALIDA");
+    expect(result.protocolAutomataTrace).toEqual([
+      { from: "p0", symbol: "PRECHECK_FAILED", to: "pProtocolError", status: "error" }
+    ]);
+  });
+
+  it("no confunde fallas de PC2 con ARP del gateway de PC1", () => {
+    const request: SimulationRequest = {
+      ...baseRequest,
+      pc2: {
+        ...baseRequest.pc2,
+        gateway: "10.0.0.254"
+      }
+    };
+
+    const result = simulate(request);
+    expect(result.delivered).toBe(false);
+    expect(result.networkAutomataTrace.at(-1)?.symbol).toBe("RUTA_DESTINO_INVALIDA");
+    expect(result.protocolAutomataTrace.map((step) => step.symbol)).toEqual([
+      "FRAME_READY",
+      "ARP_REQUEST_GATEWAY",
+      "ARP_REPLY_GATEWAY",
+      "TCP_SYN",
+      "TCP_TIMEOUT"
+    ]);
+  });
+
+  it("mantiene coherencia entre recorridos y automatas formales", () => {
+    const scenarios: SimulationRequest[] = [
+      baseRequest,
+      { ...baseRequest, packet: { transport: "UDP", destinationPort: "53" } },
+      { ...baseRequest, packet: { transport: "UDP", destinationPort: "67" } },
+      { ...baseRequest, packet: { transport: "UDP", destinationPort: "69" } },
+      { ...baseRequest, packet: { transport: "ICMP", destinationPort: "" } },
+      {
+        ...baseRequest,
+        pc1: {
+          ...baseRequest.pc1,
+          gateway: "192.168.1.254"
+        }
+      },
+      {
+        ...baseRequest,
+        router: {
+          ...baseRequest.router,
+          eth1: { ip: "11.0.0.1", mask: "255.255.255.0" }
+        },
+        packet: { transport: "ICMP", destinationPort: "" }
+      }
+    ];
+
+    scenarios.forEach((scenario) => {
+      const result = simulate(scenario);
+
+      expectTraceInsideDefinition(result.networkAutomataTrace, result.networkAutomata.transitions);
+      expectTraceInsideDefinition(result.protocolAutomataTrace, result.protocolAutomata.transitions);
+    });
+  });
 });
+
+function expectTraceInsideDefinition(
+  trace: Array<{ from: string; symbol: string; to: string }>,
+  definition: Array<{ from: string; symbol: string; to: string }>
+) {
+  trace.forEach((transition) => {
+    expect(definition).toContainEqual({
+      from: transition.from,
+      symbol: transition.symbol,
+      to: transition.to
+    });
+  });
+}
