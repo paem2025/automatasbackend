@@ -1,6 +1,6 @@
-# RouteSim Automata Backend
+# Simulador de Automatas de Red - Backend
 
-Backend de simulacion para RouteSim Automata. Recibe una configuracion de red,
+Backend de simulacion para el Simulador de Automatas de Red. Recibe una configuracion de red,
 valida el recorrido de un paquete y devuelve una respuesta educativa con pasos,
 resultado, automatas finitos y trazas.
 
@@ -124,7 +124,7 @@ Respuesta ejemplo:
     "database": "automataslab",
     "error": null
   },
-  "service": "routesim-automata-backend",
+  "service": "simulador-automatas-red-backend",
   "timestamp": "2026-06-08T18:19:27.127Z"
 }
 ```
