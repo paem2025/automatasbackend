@@ -12,13 +12,11 @@ Este repo se despliega como una app independiente con Dockerfile.
 
 ```env
 PORT=8080
-DB_ENABLED=false
 CORS_ORIGIN=https://URL-PUBLICA-DEL-FRONTEND
 ```
 
-La base de datos no es necesaria para la simulacion. Con `DB_ENABLED=false`, el
-backend procesa la simulacion y devuelve la traza de automatas sin guardar
-historial.
+La base de datos no es necesaria para la simulacion. El backend procesa cada
+request en memoria y devuelve la traza de automatas sin guardar historial.
 
 ## Prueba despues del deploy
 

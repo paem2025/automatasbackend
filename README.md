@@ -8,8 +8,7 @@ resultado, automatas finitos y trazas.
 
 - Node.js 20.19 o superior. Tambien sirve Node.js 22.12 o superior.
 - npm.
-- MySQL es opcional. La simulacion funciona sin base de datos si se desactiva
-  `DB_ENABLED`.
+- No requiere base de datos.
 
 ## Tecnologias
 
@@ -18,7 +17,6 @@ resultado, automatas finitos y trazas.
 - Express
 - CORS
 - Dotenv
-- MySQL con `mysql2`
 - Vitest
 
 ## Puertos
@@ -44,28 +42,15 @@ En Windows PowerShell tambien se puede usar:
 Copy-Item .env.example .env
 ```
 
-Si no se quiere usar MySQL, dejar esta variable asi:
-
-```env
-DB_ENABLED=false
-```
-
-Si se quiere usar MySQL, crear la base `automataslab` y configurar:
+Variables disponibles:
 
 ```env
 PORT=8080
 CORS_ORIGIN=http://localhost:3000
-DB_ENABLED=true
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=1234
-DB_NAME=automataslab
 ```
 
-El backend crea automaticamente la tabla `simulation_history` si MySQL esta
-disponible. Si la base no esta conectada, la simulacion sigue funcionando, pero
-no se guarda historial.
+El backend no guarda historial ni requiere persistencia. Cada simulacion se
+calcula en memoria y la respuesta se devuelve en el momento.
 
 ## Ejecucion
 
@@ -111,19 +96,13 @@ frontend este en modo mock.
 
 ### `GET /api/health`
 
-Verifica estado del servicio y conexion con base de datos.
+Verifica estado del servicio.
 
 Respuesta ejemplo:
 
 ```json
 {
   "ok": true,
-  "database": {
-    "enabled": true,
-    "connected": true,
-    "database": "automataslab",
-    "error": null
-  },
   "service": "simulador-automatas-red-backend",
   "timestamp": "2026-06-08T18:19:27.127Z"
 }
@@ -160,27 +139,6 @@ Campos principales de respuesta:
 - `networkAutomataTrace`: recorrido ejecutado por el automata de red.
 - `protocolAutomata`: definicion formal del automata de protocolo.
 - `protocolAutomataTrace`: recorrido ejecutado por el automata de protocolo.
-
-### `GET /api/simulations?limit=20`
-
-Devuelve simulaciones guardadas en MySQL. Si `DB_ENABLED=false` o MySQL no esta
-disponible, devuelve una lista vacia.
-
-```json
-{
-  "simulations": [
-    {
-      "id": 1,
-      "delivered": true,
-      "detectedProtocol": "HTTPS",
-      "reason": "Transporte TCP y puerto 443 corresponde a HTTPS.",
-      "request": {},
-      "response": {},
-      "createdAt": "2026-06-08T18:19:41.000Z"
-    }
-  ]
-}
-```
 
 ## Prueba rapida
 
@@ -239,20 +197,6 @@ Se ejecuta segun el paquete configurado:
 
 Si el automata de red falla en una etapa previa, el automata de protocolo queda
 en error previo o se corta donde corresponda.
-
-## Persistencia
-
-Cada simulacion se guarda en `simulation_history` con:
-
-- resultado (`delivered`)
-- protocolo detectado
-- motivo
-- request completo
-- response completo
-- fecha de creacion
-
-La persistencia no bloquea la simulacion: si MySQL falla, el endpoint responde
-igual y el error queda visible en `/api/health`.
 
 ## Verificacion
 
